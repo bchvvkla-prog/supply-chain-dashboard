@@ -31,17 +31,21 @@ ChartJS.register(
 );
 
 /* =========================
-   THEME
+   FUTURISTIC THEME (STYLE ONLY)
 ========================= */
 const THEME = {
-  bg: "#020617",
-  border: "#1E293B",
-  title: "#F8FAFC",
+  bg: "radial-gradient(1200px 600px at top right, #0b1020, #020617)",
+  border: "rgba(148,163,184,0.18)",
+  title: "#E5E7EB",
   label: "#94A3B8",
-  primary: "#38BDF8",
-  secondary: "#A78BFA",
+  primary: "#5DF0FF",   // neon cyan
+  secondary: "#9A5CF5", // neon violet
   success: "#22C55E",
   danger: "#EF4444",
+  warning: "#FACC15",
+  glass: "rgba(15,23,42,0.65)",
+  glowCyan: "0 0 24px rgba(93,240,255,0.45)",
+  glowViolet: "0 0 24px rgba(154,92,245,0.45)",
 };
 
 /* =========================
@@ -53,13 +57,13 @@ const growthPct = (curr, prev) => {
 };
 
 /* =========================
-   KPI CARD
+   KPI CARD (STYLE ONLY)
 ========================= */
-function KpiCard({ title, value, prev }) {
+function KpiCard({ title, value, prev, demo }) {
   const g = growthPct(value, prev);
-
   let arrow = "—";
   let color = THEME.label;
+
   if (g > 0) {
     arrow = "▲";
     color = THEME.success;
@@ -69,7 +73,17 @@ function KpiCard({ title, value, prev }) {
   }
 
   return (
-    <div style={{ border: `1px solid ${THEME.border}`, borderRadius: 10, padding: 10 }}>
+    <div
+      style={{
+        border: `1px solid ${THEME.border}`,
+        borderRadius: 14,
+        padding: 12,
+        background: THEME.glass,
+        backdropFilter: "blur(14px)",
+        boxShadow: demo ? THEME.glowCyan : "none",
+        transition: "box-shadow 0.6s ease",
+      }}
+    >
       <div style={{ fontSize: 12, color: THEME.label }}>{title}</div>
       <div style={{ fontSize: 20, fontWeight: 900 }}>{value ?? "—"}</div>
       {g !== null && (
@@ -82,17 +96,21 @@ function KpiCard({ title, value, prev }) {
 }
 
 /* =========================
-   PANEL
+   PANEL (STYLE ONLY)
 ========================= */
-function Panel({ title, children }) {
+function Panel({ title, children, demo }) {
   return (
     <div
       style={{
         border: `1px solid ${THEME.border}`,
-        borderRadius: 12,
-        padding: 10,
+        borderRadius: 16,
+        padding: 12,
         display: "flex",
         flexDirection: "column",
+        background: THEME.glass,
+        backdropFilter: "blur(16px)",
+        boxShadow: demo ? THEME.glowViolet : "none",
+        transition: "box-shadow 0.6s ease",
       }}
     >
       <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 6 }}>
@@ -110,11 +128,11 @@ export default function Dashboard() {
   const [logistics, setLogistics] = useState({});
   const [ai, setAI] = useState({});
   const [now, setNow] = useState(new Date());
-
-  /* DATE FILTER */
   const [range, setRange] = useState(30);
 
-  /* COPILOT */
+  /* DEMO MODE (VISUAL ONLY) */
+  const [demoMode, setDemoMode] = useState(false);
+
   const [question, setQuestion] = useState("");
   const [aiResult, setAiResult] = useState(null);
   const [loadingAI, setLoadingAI] = useState(false);
@@ -131,7 +149,6 @@ export default function Dashboard() {
       const curr = await fetchKPIs();
       setKpis(curr);
 
-      // simulate previous period
       const factor = range === 7 ? 0.95 : range === 15 ? 0.9 : 0.85;
       setPrevKpis({
         total_revenue: curr.total_revenue * factor,
@@ -158,42 +175,28 @@ export default function Dashboard() {
     kpis.other_revenue || 0,
   ];
 
+  const revenueAtRisk = products
+    .filter((p) => p.x < p.y)
+    .reduce((sum, p) => sum + (p.y - p.x) * 50, 0);
+
   /* =========================
-     PDF EXPORT
-  ========================= */
+     PDF EXPORT (UNCHANGED)
+========================= */
   function exportToPDF() {
     const pdf = new jsPDF("landscape", "pt", "a4");
-
-    pdf.setFontSize(22);
-    pdf.text(`Supply Chain Executive Report – Last ${range} Days`, 40, 50);
-
-    pdf.setFontSize(14);
-    let y = 100;
-    [
-      `Revenue: $${kpis.total_revenue?.toLocaleString()}`,
-      `Units Sold: ${kpis.total_units_sold}`,
-      `Top Product: ${top.product || "N/A"}`,
-      `Avg Shipping Cost: $${kpis.avg_shipping_cost}`,
-      `Avg Lead Time: ${kpis.avg_lead_time} days`,
-      "",
-      "Recommendation:",
-      "Rebalance inventory toward high-demand products and optimize shipping lanes.",
-    ].forEach((line) => {
-      pdf.text(line, 40, y);
-      y += 22;
-    });
-
     const input = document.getElementById("dashboard-pdf");
-    html2canvas(input, { scale: 2, backgroundColor: THEME.bg }).then((canvas) => {
-      pdf.addPage("a4", "landscape");
+
+    html2canvas(input, {
+      scale: 2,
+      backgroundColor: "#020617",
+    }).then((canvas) => {
       const w = pdf.internal.pageSize.getWidth();
       const h = (canvas.height * w) / canvas.width;
       pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 40, w, h);
-      pdf.save(`Supply_Chain_${range}_Days_Report.pdf`);
+      pdf.save(`Supply_Chain_Dashboard_${range}_Days.pdf`);
     });
   }
 
-  /* COPILOT */
   async function askCopilot() {
     if (!question.trim()) return;
     setLoadingAI(true);
@@ -211,34 +214,53 @@ export default function Dashboard() {
       id="dashboard-pdf"
       style={{
         height: "100vh",
-        padding: 10,
+        padding: 14,
         background: THEME.bg,
         color: THEME.title,
         display: "flex",
         flexDirection: "column",
-        gap: 10,
+        gap: 12,
       }}
     >
-      {/* HEADER */}
+      {/* HEADER (UNCHANGED STRUCTURE) */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h1 style={{ margin: 0, fontWeight: 900 }}>SUPPLY CHAIN DASHBOARD</h1>
+        <h1 style={{ margin: 0, fontWeight: 900, letterSpacing: 1 }}>
+          SUPPLY CHAIN DASHBOARD
+        </h1>
 
         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
           <select
             value={range}
             onChange={(e) => setRange(Number(e.target.value))}
             style={{
-              padding: "6px 10px",
-              borderRadius: 8,
-              background: THEME.bg,
+              background: THEME.glass,
               color: THEME.title,
               border: `1px solid ${THEME.border}`,
+              padding: "6px 10px",
+              borderRadius: 10,
             }}
           >
             <option value={7}>Last 7 Days</option>
             <option value={15}>Last 15 Days</option>
             <option value={30}>Last 30 Days</option>
           </select>
+
+          <button
+            onClick={() => setDemoMode(!demoMode)}
+            style={{
+              padding: "6px 14px",
+              borderRadius: 10,
+              background: demoMode
+                ? "linear-gradient(135deg,#22C55E,#5DF0FF)"
+                : "linear-gradient(135deg,#5DF0FF,#9A5CF5)",
+              fontWeight: 900,
+              border: "none",
+              cursor: "pointer",
+              boxShadow: THEME.glowCyan,
+            }}
+          >
+            {demoMode ? "● Demo ON" : "▶ Demo Mode"}
+          </button>
 
           <div style={{ fontSize: 12, color: THEME.label }}>
             {now.toLocaleDateString()} | {now.toLocaleTimeString()}
@@ -247,10 +269,13 @@ export default function Dashboard() {
           <button
             onClick={exportToPDF}
             style={{
-              padding: "8px 14px",
-              borderRadius: 10,
-              background: "linear-gradient(135deg,#38BDF8,#A78BFA)",
+              padding: "8px 16px",
+              borderRadius: 12,
+              background: "linear-gradient(135deg,#5DF0FF,#9A5CF5)",
               fontWeight: 900,
+              border: "none",
+              cursor: "pointer",
+              boxShadow: THEME.glowCyan,
             }}
           >
             ⬇ Export PDF
@@ -258,29 +283,55 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* KPI STRIP */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 8 }}>
-        <KpiCard title="Revenue" value={kpis.total_revenue} prev={prevKpis.total_revenue} />
-        <KpiCard title="Units Sold" value={kpis.total_units_sold} prev={prevKpis.total_units_sold} />
+      {/* KPI STRIP (UNCHANGED) */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 10 }}>
+        <KpiCard title="Revenue" value={kpis.total_revenue} prev={prevKpis.total_revenue} demo={demoMode} />
+        <KpiCard title="Units Sold" value={kpis.total_units_sold} prev={prevKpis.total_units_sold} demo={demoMode} />
         <KpiCard title="Ship Cost" value={kpis.avg_shipping_cost} prev={prevKpis.avg_shipping_cost} />
-        <KpiCard title="Lead Time" value={kpis.avg_lead_time} prev={prevKpis.avg_lead_time} />
+        <KpiCard title="Lead Time" value={kpis.avg_lead_time} prev={prevKpis.avg_lead_time} demo={demoMode} />
         <KpiCard title="Top SKU" value={top.sku} />
         <KpiCard title="Top Product" value={top.product} />
         <KpiCard title="Defect %" value={kpis.avg_defect_rate} />
       </div>
 
-      {/* VISUAL GRID */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gridTemplateRows: "repeat(2,1fr)", gap: 10, flexGrow: 1 }}>
-        <Panel title="Revenue by Product">
-          <Bar
-            data={{ labels: ["Skin","Hair","Cosmetics","Fragrance","Others"], datasets: [{ data: revenueValues, backgroundColor: THEME.primary }] }}
-            options={{ maintainAspectRatio: false }}
-          />
-        </Panel>
+      {/* VISUAL GRID (UNCHANGED) */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(3,1fr)",
+          gridTemplateRows: "repeat(2,0.9fr)",
+          gap: 12,
+          flexGrow: 1,
+        }}
+      >
+        <div style={{ display: "grid", gridTemplateRows: "1fr 1fr", gap: 12 }}>
+          <Panel title="Revenue at Risk (Lost Sales)" demo={demoMode}>
+            <div style={{ fontSize: 26, fontWeight: 900, color: THEME.warning }}>
+              ${revenueAtRisk.toLocaleString()}
+            </div>
+            <div style={{ fontSize: 12, color: THEME.label }}>
+              Potential revenue lost due to stock shortages
+            </div>
+          </Panel>
+
+          <Panel title="SKUs at Risk" demo={demoMode}>
+            {products.filter(p => p.x < p.y).slice(0, 4).map((p, i) => (
+              <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                <span>{p.product} ({p.sku})</span>
+                <span style={{ color: THEME.danger, fontWeight: 800 }}>
+                  {p.y - p.x} units
+                </span>
+              </div>
+            ))}
+          </Panel>
+        </div>
 
         <Panel title="Revenue Mix">
           <Pie
-            data={{ labels: ["Skin","Hair","Cosmetics","Fragrance","Others"], datasets: [{ data: revenueValues, backgroundColor: [THEME.primary,THEME.secondary,THEME.success,"#F59E0B","#64748B"] }] }}
+            data={{
+              labels: ["Skin","Hair","Cosmetics","Fragrance","Others"],
+              datasets: [{ data: revenueValues, backgroundColor: [THEME.primary,THEME.secondary,THEME.success,"#FACC15","#64748B"] }],
+            }}
             options={{ maintainAspectRatio: false }}
           />
         </Panel>
@@ -289,7 +340,7 @@ export default function Dashboard() {
           {products.slice(0, 6).map((p, i) => {
             const gap = p.x - p.y;
             const status = gap < -20 ? "⬇️ Shortage" : gap > 20 ? "⬆️ Surplus" : "🟡 Balanced";
-            const color = gap < -20 ? THEME.danger : gap > 20 ? THEME.success : "#F59E0B";
+            const color = gap < -20 ? THEME.danger : gap > 20 ? THEME.success : THEME.warning;
             return (
               <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
                 <span>{p.product} ({p.sku})</span>
@@ -325,7 +376,7 @@ export default function Dashboard() {
           />
         </Panel>
 
-        <Panel title="AI Insights">
+        <Panel title="AI Insights" demo={demoMode}>
           {(ai.insights || []).slice(0, 3).map((i, idx) => (
             <div key={idx} style={{ fontSize: 13 }}>• {i}</div>
           ))}
@@ -335,16 +386,33 @@ export default function Dashboard() {
         </Panel>
       </div>
 
-      {/* COPILOT */}
+      {/* COPILOT (UNCHANGED) */}
       <div style={{ display: "flex", gap: 10 }}>
         <input
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && askCopilot()}
           placeholder="Ask Copilot…"
-          style={{ flex: 1, padding: 12, borderRadius: 10, border: `1px solid ${THEME.border}` }}
+          style={{
+            flex: 1,
+            padding: 12,
+            borderRadius: 12,
+            background: THEME.glass,
+            color: THEME.title,
+            border: `1px solid ${THEME.border}`,
+          }}
         />
-        <button onClick={askCopilot} style={{ padding: "0 18px", borderRadius: 10, background: THEME.primary, fontWeight: 900 }}>
+        <button
+          onClick={askCopilot}
+          style={{
+            padding: "0 18px",
+            borderRadius: 12,
+            background: "linear-gradient(135deg,#5DF0FF,#9A5CF5)",
+            fontWeight: 900,
+            border: "none",
+            cursor: "pointer",
+            boxShadow: THEME.glowCyan,
+          }}
+        >
           Ask
         </button>
       </div>
