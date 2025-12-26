@@ -19,7 +19,7 @@ app.add_middleware(
 # LOAD DATA
 # -----------------------------
 df = pd.read_csv("data/supply_chain_data.csv")
-df.columns = [c.strip() for c in df.columns]  # clean headers
+df.columns = [c.strip() for c in df.columns]
 
 # -----------------------------
 # KPI ENDPOINT
@@ -61,8 +61,8 @@ def get_inventory():
         {
             "product": row["Product type"],
             "sku": row["SKU"],
-            "x": int(row["Stock levels"]),      # Stock
-            "y": int(row["Order quantities"]),  # Demand
+            "x": int(row["Stock levels"]),
+            "y": int(row["Order quantities"]),
         }
         for _, row in df_clean.iterrows()
     ]
@@ -90,7 +90,7 @@ def get_logistics():
     }
 
 # -----------------------------
-# AI INSIGHTS (STATIC SUMMARY)
+# AI INSIGHTS
 # -----------------------------
 @app.get("/ai-insights")
 def get_ai_insights():
@@ -110,16 +110,16 @@ def get_ai_insights():
             f"Prioritize supply planning for {top_product} to avoid lost sales"
     }
 
-# =====================================================
-# 🤖 AI COPILOT (DATA-AWARE, GENERIC)
-# =====================================================
-
+# -----------------------------
+# AI COPILOT
+# -----------------------------
 class AIQueryRequest(BaseModel):
     question: str
 
 
-def analyze_question(question: str):
-    q = question.lower()
+@app.post("/ai-query")
+def ai_query(payload: AIQueryRequest):
+    q = payload.question.lower()
 
     revenue_by_product = df.groupby("Product type")["Revenue generated"].sum()
     stock_avg = df["Stock levels"].mean()
@@ -128,85 +128,26 @@ def analyze_question(question: str):
     top_category = revenue_by_product.idxmax()
     top_revenue = revenue_by_product.max()
 
-    # ---------- REVENUE ----------
     if "revenue" in q or "sales" in q:
         return {
             "confidence": 0.95,
             "insights": [
-                f"{top_category.capitalize()} leads in total revenue",
-                "Revenue concentration differs by product category",
+                f"{top_category.capitalize()} leads in total revenue"
             ],
             "metrics": {
                 "Top Category": top_category,
                 "Top Revenue": round(top_revenue, 2),
             },
             "recommendation":
-                "Strengthen forecasting and promotion for high-revenue categories"
+                "Strengthen forecasting for high-revenue categories"
         }
 
-    # ---------- WHY / EXPLANATION ----------
-    if "why" in q:
-        return {
-            "confidence": 0.92,
-            "insights": [
-                "High demand concentration drives category leadership",
-                "Inventory availability directly impacts revenue realization",
-                "Operational efficiency supports repeat sales",
-            ],
-            "metrics": {
-                "Avg Stock": int(stock_avg),
-                "Avg Demand": int(demand_avg),
-            },
-            "recommendation":
-                "Align inventory planning with demand patterns to sustain growth"
-        }
-
-    # ---------- INVENTORY ----------
-    if "inventory" in q or "stock" in q:
-        status = "Healthy" if stock_avg >= demand_avg else "At Risk"
-        return {
-            "confidence": 0.93,
-            "insights": [
-                f"Overall inventory health is {status}",
-                "Several SKUs show demand exceeding stock",
-            ],
-            "metrics": {
-                "Avg Stock": int(stock_avg),
-                "Avg Demand": int(demand_avg),
-            },
-            "recommendation":
-                "Rebalance stock from surplus SKUs to high-demand products"
-        }
-
-    # ---------- LOGISTICS ----------
-    if "shipping" in q or "logistics" in q:
-        return {
-            "confidence": 0.90,
-            "insights": [
-                "Shipping cost varies significantly across carriers",
-                "Faster shipping often increases cost",
-            ],
-            "metrics": {
-                "Avg Shipping Cost": round(df["Shipping costs"].mean(), 2),
-                "Avg Shipping Time": round(df["Shipping times"].mean(), 1),
-            },
-            "recommendation":
-                "Optimize carrier mix to balance cost and delivery speed"
-        }
-
-    # ---------- DEFAULT ----------
     return {
         "confidence": 0.75,
         "insights": [
-            "This dashboard tracks revenue, inventory, and logistics performance",
-            "Key risks include demand volatility and inventory imbalance",
+            "Ask about revenue, inventory, or logistics"
         ],
         "metrics": {},
         "recommendation":
-            "Ask about revenue, inventory health, logistics, or performance drivers"
+            "Use the AI Copilot for operational insights"
     }
-
-
-@app.post("/ai-query")
-def ai_query(payload: AIQueryRequest):
-    return analyze_question(payload.question)
