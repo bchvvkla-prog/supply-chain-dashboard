@@ -29,3 +29,7 @@ export async function fetchAIInsights() {
   if (!res.ok) throw new Error("Failed to fetch AI Insights");
   return res.json();
 }
+
+const API_BASE = import.meta.env.VITE_API_URL;
+
+fetch(`${API_BASE}/your-endpoint`);
