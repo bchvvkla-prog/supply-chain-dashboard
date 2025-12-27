@@ -8,11 +8,17 @@ from google_sheets_loader import load_supply_chain_data
 app = FastAPI()
 
 # -----------------------------
-# CORS
+# ✅ CORS (PRODUCTION SAFE)
 # -----------------------------
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "https://supply-chain-dashboard-umber.vercel.app",
+        "https://portal.brevanext.com",
+        "http://localhost:5173",
+        "http://localhost:3000",
+    ],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -44,13 +50,14 @@ def get_clean_df():
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
 
-    # Drop rows where core numeric values are missing
-    df = df.dropna(subset=[
-        "Revenue generated",
-        "Number of products sold",
-        "Stock levels",
-        "Order quantities",
-    ])
+    df = df.dropna(
+        subset=[
+            "Revenue generated",
+            "Number of products sold",
+            "Stock levels",
+            "Order quantities",
+        ]
+    )
 
     return df
 
@@ -87,7 +94,6 @@ def get_kpis():
         "avg_defect_rate": "N/A",
         "avg_shipping_cost": round(df["Shipping costs"].mean(), 2),
         "avg_lead_time": round(df["Lead times"].mean(), 1),
-
         "skin_care_revenue": revenue_by_product.get("skincare", 0),
         "hair_care_revenue": revenue_by_product.get("haircare", 0),
         "cosmetics_revenue": revenue_by_product.get("cosmetics", 0),
@@ -121,7 +127,7 @@ def get_inventory():
 def get_logistics():
     df = get_clean_df()
 
-    if df.empty:
+    if df.empty or "Shipping carriers" not in df.columns:
         return {
             "carriers": [],
             "avg_shipping_cost": [],
@@ -168,8 +174,7 @@ def get_ai_insights():
             "Demand variability is high across SKUs",
             "Inventory imbalance exists in multiple products",
         ],
-        "recommendation":
-            f"Prioritize supply planning for {top_product} to avoid lost sales"
+        "recommendation": f"Prioritize supply planning for {top_product} to avoid lost sales",
     }
 
 # -----------------------------
@@ -198,23 +203,17 @@ def ai_query(payload: AIQueryRequest):
     if "revenue" in q or "sales" in q:
         return {
             "confidence": 0.95,
-            "insights": [
-                f"{top_category.capitalize()} leads in total revenue"
-            ],
+            "insights": [f"{top_category.capitalize()} leads in total revenue"],
             "metrics": {
                 "Top Category": top_category,
                 "Top Revenue": round(top_revenue, 2),
             },
-            "recommendation":
-                "Strengthen forecasting for high-revenue categories"
+            "recommendation": "Strengthen forecasting for high-revenue categories",
         }
 
     return {
         "confidence": 0.75,
-        "insights": [
-            "Ask about revenue, inventory, or logistics"
-        ],
+        "insights": ["Ask about revenue, inventory, or logistics"],
         "metrics": {},
-        "recommendation":
-            "Use the AI Copilot for operational insights"
+        "recommendation": "Use the AI Copilot for operational insights",
     }
