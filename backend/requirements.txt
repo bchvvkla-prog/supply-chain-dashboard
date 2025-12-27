@@ -3,3 +3,6 @@ uvicorn[standard]
 pandas
 numpy
 python-multipart
+gspread
+google-auth
+
