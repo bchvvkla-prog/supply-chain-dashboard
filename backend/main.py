@@ -3,6 +3,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import pandas as pd
 
+# ✅ Google Sheets loader
+from google_sheets_loader import load_supply_chain_data
+
 app = FastAPI()
 
 # -----------------------------
@@ -16,16 +19,20 @@ app.add_middleware(
 )
 
 # -----------------------------
-# LOAD DATA
+# ROOT HEALTH CHECK
 # -----------------------------
-df = pd.read_csv("data/supply_chain_data.csv")
-df.columns = [c.strip() for c in df.columns]
+@app.get("/")
+def root():
+    return {"message": "Supply Chain API running"}
 
 # -----------------------------
 # KPI ENDPOINT
 # -----------------------------
 @app.get("/kpis")
 def get_kpis():
+    df = load_supply_chain_data()
+    df.columns = [c.strip() for c in df.columns]
+
     revenue_by_product = (
         df.groupby("Product type")["Revenue generated"]
         .sum()
@@ -51,11 +58,12 @@ def get_kpis():
 # -----------------------------
 @app.get("/inventory-kpis")
 def get_inventory():
-    df_clean = df.copy()
+    df = load_supply_chain_data()
+    df.columns = [c.strip() for c in df.columns]
 
-    df_clean["Stock levels"] = pd.to_numeric(df_clean["Stock levels"], errors="coerce")
-    df_clean["Order quantities"] = pd.to_numeric(df_clean["Order quantities"], errors="coerce")
-    df_clean = df_clean.dropna(subset=["Stock levels", "Order quantities"])
+    df["Stock levels"] = pd.to_numeric(df["Stock levels"], errors="coerce")
+    df["Order quantities"] = pd.to_numeric(df["Order quantities"], errors="coerce")
+    df = df.dropna(subset=["Stock levels", "Order quantities"])
 
     scatter_data = [
         {
@@ -64,7 +72,7 @@ def get_inventory():
             "x": int(row["Stock levels"]),
             "y": int(row["Order quantities"]),
         }
-        for _, row in df_clean.iterrows()
+        for _, row in df.iterrows()
     ]
 
     return {"scatter_data": scatter_data}
@@ -74,11 +82,14 @@ def get_inventory():
 # -----------------------------
 @app.get("/logistics-kpis")
 def get_logistics():
+    df = load_supply_chain_data()
+    df.columns = [c.strip() for c in df.columns]
+
     grouped = (
         df.groupby("Shipping carriers")
         .agg(
             avg_shipping_cost=("Shipping costs", "mean"),
-            avg_shipping_time=("Shipping times", "mean")
+            avg_shipping_time=("Shipping times", "mean"),
         )
         .reset_index()
     )
@@ -94,6 +105,9 @@ def get_logistics():
 # -----------------------------
 @app.get("/ai-insights")
 def get_ai_insights():
+    df = load_supply_chain_data()
+    df.columns = [c.strip() for c in df.columns]
+
     top_product = (
         df.groupby("Product type")["Revenue generated"]
         .sum()
@@ -116,15 +130,14 @@ def get_ai_insights():
 class AIQueryRequest(BaseModel):
     question: str
 
-
 @app.post("/ai-query")
 def ai_query(payload: AIQueryRequest):
+    df = load_supply_chain_data()
+    df.columns = [c.strip() for c in df.columns]
+
     q = payload.question.lower()
 
     revenue_by_product = df.groupby("Product type")["Revenue generated"].sum()
-    stock_avg = df["Stock levels"].mean()
-    demand_avg = df["Order quantities"].mean()
-
     top_category = revenue_by_product.idxmax()
     top_revenue = revenue_by_product.max()
 
