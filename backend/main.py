@@ -3,7 +3,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import pandas as pd
 
-# ✅ Google Sheets loader
 from google_sheets_loader import load_supply_chain_data
 
 app = FastAPI()
@@ -26,12 +25,55 @@ def root():
     return {"message": "Supply Chain API running"}
 
 # -----------------------------
+# COMMON DATA CLEANER
+# -----------------------------
+def get_clean_df():
+    df = load_supply_chain_data()
+    df.columns = [c.strip() for c in df.columns]
+
+    numeric_columns = [
+        "Revenue generated",
+        "Number of products sold",
+        "Shipping costs",
+        "Lead times",
+        "Stock levels",
+        "Order quantities",
+    ]
+
+    for col in numeric_columns:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+    # Drop rows where core numeric values are missing
+    df = df.dropna(subset=[
+        "Revenue generated",
+        "Number of products sold",
+        "Stock levels",
+        "Order quantities",
+    ])
+
+    return df
+
+# -----------------------------
 # KPI ENDPOINT
 # -----------------------------
 @app.get("/kpis")
 def get_kpis():
-    df = load_supply_chain_data()
-    df.columns = [c.strip() for c in df.columns]
+    df = get_clean_df()
+
+    if df.empty:
+        return {
+            "total_revenue": 0,
+            "total_units_sold": 0,
+            "avg_defect_rate": "N/A",
+            "avg_shipping_cost": 0,
+            "avg_lead_time": 0,
+            "skin_care_revenue": 0,
+            "hair_care_revenue": 0,
+            "cosmetics_revenue": 0,
+            "fragrance_revenue": 0,
+            "other_revenue": 0,
+        }
 
     revenue_by_product = (
         df.groupby("Product type")["Revenue generated"]
@@ -58,17 +100,12 @@ def get_kpis():
 # -----------------------------
 @app.get("/inventory-kpis")
 def get_inventory():
-    df = load_supply_chain_data()
-    df.columns = [c.strip() for c in df.columns]
-
-    df["Stock levels"] = pd.to_numeric(df["Stock levels"], errors="coerce")
-    df["Order quantities"] = pd.to_numeric(df["Order quantities"], errors="coerce")
-    df = df.dropna(subset=["Stock levels", "Order quantities"])
+    df = get_clean_df()
 
     scatter_data = [
         {
-            "product": row["Product type"],
-            "sku": row["SKU"],
+            "product": row.get("Product type"),
+            "sku": row.get("SKU"),
             "x": int(row["Stock levels"]),
             "y": int(row["Order quantities"]),
         }
@@ -82,14 +119,20 @@ def get_inventory():
 # -----------------------------
 @app.get("/logistics-kpis")
 def get_logistics():
-    df = load_supply_chain_data()
-    df.columns = [c.strip() for c in df.columns]
+    df = get_clean_df()
+
+    if df.empty:
+        return {
+            "carriers": [],
+            "avg_shipping_cost": [],
+            "avg_shipping_time": [],
+        }
 
     grouped = (
         df.groupby("Shipping carriers")
         .agg(
             avg_shipping_cost=("Shipping costs", "mean"),
-            avg_shipping_time=("Shipping times", "mean"),
+            avg_shipping_time=("Lead times", "mean"),
         )
         .reset_index()
     )
@@ -105,8 +148,13 @@ def get_logistics():
 # -----------------------------
 @app.get("/ai-insights")
 def get_ai_insights():
-    df = load_supply_chain_data()
-    df.columns = [c.strip() for c in df.columns]
+    df = get_clean_df()
+
+    if df.empty:
+        return {
+            "insights": ["No sufficient data available"],
+            "recommendation": "Please ensure data is filled correctly",
+        }
 
     top_product = (
         df.groupby("Product type")["Revenue generated"]
@@ -132,10 +180,16 @@ class AIQueryRequest(BaseModel):
 
 @app.post("/ai-query")
 def ai_query(payload: AIQueryRequest):
-    df = load_supply_chain_data()
-    df.columns = [c.strip() for c in df.columns]
-
+    df = get_clean_df()
     q = payload.question.lower()
+
+    if df.empty:
+        return {
+            "confidence": 0.0,
+            "insights": ["No valid data available"],
+            "metrics": {},
+            "recommendation": "Fix data in Google Sheet",
+        }
 
     revenue_by_product = df.groupby("Product type")["Revenue generated"].sum()
     top_category = revenue_by_product.idxmax()
