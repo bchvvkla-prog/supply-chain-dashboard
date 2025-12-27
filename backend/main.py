@@ -1,5 +1,6 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 from pydantic import BaseModel
 import pandas as pd
 
@@ -7,32 +8,49 @@ from google_sheets_loader import load_supply_chain_data
 
 app = FastAPI()
 
-# -----------------------------
-# ✅ CORS (PRODUCTION SAFE)
-# -----------------------------
+# -------------------------------------------------
+# ✅ CORS — EXPLICIT & RENDER-SAFE
+# -------------------------------------------------
+ALLOWED_ORIGINS = [
+    "https://supply-chain-dashboard-umber.vercel.app",
+    "https://portal.brevanext.com",
+    "http://localhost:5173",
+    "http://localhost:3000",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://supply-chain-dashboard-umber.vercel.app",
-        "https://portal.brevanext.com",
-        "http://localhost:5173",
-        "http://localhost:3000",
-    ],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
-# -----------------------------
+# -------------------------------------------------
+# ✅ FORCE PREFLIGHT (CRITICAL FOR RENDER)
+# -------------------------------------------------
+@app.options("/{path:path}")
+def preflight_handler(path: str, request: Request):
+    return Response(
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": request.headers.get("origin", ""),
+            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Authorization, Content-Type",
+            "Access-Control-Allow-Credentials": "true",
+        },
+    )
+
+# -------------------------------------------------
 # ROOT HEALTH CHECK
-# -----------------------------
+# -------------------------------------------------
 @app.get("/")
 def root():
     return {"message": "Supply Chain API running"}
 
-# -----------------------------
-# COMMON DATA CLEANER
-# -----------------------------
+# -------------------------------------------------
+# COMMON DATA CLEANER (STABLE)
+# -------------------------------------------------
 def get_clean_df():
     df = load_supply_chain_data()
     df.columns = [c.strip() for c in df.columns]
@@ -61,9 +79,9 @@ def get_clean_df():
 
     return df
 
-# -----------------------------
+# -------------------------------------------------
 # KPI ENDPOINT
-# -----------------------------
+# -------------------------------------------------
 @app.get("/kpis")
 def get_kpis():
     df = get_clean_df()
@@ -101,9 +119,9 @@ def get_kpis():
         "other_revenue": revenue_by_product.get("others", 0),
     }
 
-# -----------------------------
+# -------------------------------------------------
 # INVENTORY KPIs
-# -----------------------------
+# -------------------------------------------------
 @app.get("/inventory-kpis")
 def get_inventory():
     df = get_clean_df()
@@ -120,9 +138,9 @@ def get_inventory():
 
     return {"scatter_data": scatter_data}
 
-# -----------------------------
+# -------------------------------------------------
 # LOGISTICS KPIs
-# -----------------------------
+# -------------------------------------------------
 @app.get("/logistics-kpis")
 def get_logistics():
     df = get_clean_df()
@@ -149,9 +167,9 @@ def get_logistics():
         "avg_shipping_time": grouped["avg_shipping_time"].round(1).tolist(),
     }
 
-# -----------------------------
+# -------------------------------------------------
 # AI INSIGHTS
-# -----------------------------
+# -------------------------------------------------
 @app.get("/ai-insights")
 def get_ai_insights():
     df = get_clean_df()
@@ -177,9 +195,9 @@ def get_ai_insights():
         "recommendation": f"Prioritize supply planning for {top_product} to avoid lost sales",
     }
 
-# -----------------------------
+# -------------------------------------------------
 # AI COPILOT
-# -----------------------------
+# -------------------------------------------------
 class AIQueryRequest(BaseModel):
     question: str
 
