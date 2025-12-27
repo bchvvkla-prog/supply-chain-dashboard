@@ -8,38 +8,36 @@ from google_sheets_loader import load_supply_chain_data
 
 app = FastAPI()
 
-# -------------------------------------------------
-# ✅ CORS — EXPLICIT & RENDER-SAFE
-# -------------------------------------------------
+# =================================================
+# 🔒 FORCE CORS HEADERS (RENDER-SAFE)
+# =================================================
 ALLOWED_ORIGINS = [
     "https://supply-chain-dashboard-umber.vercel.app",
     "https://portal.brevanext.com",
-    "http://localhost:5173",
-    "http://localhost:3000",
 ]
 
+@app.middleware("http")
+async def force_cors_headers(request: Request, call_next):
+    response = await call_next(request)
+
+    origin = request.headers.get("origin")
+    if origin in ALLOWED_ORIGINS:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type"
+
+    return response
+
+# -------------------------------------------------
+# BASIC CORS (fallback only)
+# -------------------------------------------------
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
-
-# -------------------------------------------------
-# ✅ FORCE PREFLIGHT (CRITICAL FOR RENDER)
-# -------------------------------------------------
-@app.options("/{path:path}")
-def preflight_handler(path: str, request: Request):
-    return Response(
-        status_code=200,
-        headers={
-            "Access-Control-Allow-Origin": request.headers.get("origin", ""),
-            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-            "Access-Control-Allow-Headers": "Authorization, Content-Type",
-            "Access-Control-Allow-Credentials": "true",
-        },
-    )
 
 # -------------------------------------------------
 # ROOT HEALTH CHECK
@@ -49,7 +47,7 @@ def root():
     return {"message": "Supply Chain API running"}
 
 # -------------------------------------------------
-# COMMON DATA CLEANER (STABLE)
+# COMMON DATA CLEANER
 # -------------------------------------------------
 def get_clean_df():
     df = load_supply_chain_data()
