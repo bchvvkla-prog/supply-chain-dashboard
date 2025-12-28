@@ -1,10 +1,10 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
 from pydantic import BaseModel
 import pandas as pd
 
-from google_sheets_loader import load_supply_chain_data
+# ✅ FIXED IMPORT (Render-safe)
+from backend.google_sheets_loader import load_supply_chain_data
 
 app = FastAPI()
 
@@ -30,7 +30,7 @@ async def force_cors_headers(request: Request, call_next):
     return response
 
 # -------------------------------------------------
-# BASIC CORS (fallback only)
+# BASIC CORS (fallback)
 # -------------------------------------------------
 app.add_middleware(
     CORSMiddleware,
