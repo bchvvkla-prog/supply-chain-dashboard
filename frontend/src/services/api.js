@@ -1,6 +1,6 @@
 // frontend/src/services/api.js
 
-const BASE_URL = "https://supply-chain-dashboard-oz5z.onrender.com";
+const BASE_URL = "/api"; // ✅ USE VERCEL PROXY (NO CORS)
 
 // ---------------- KPIs ----------------
 export async function fetchKPIs() {
