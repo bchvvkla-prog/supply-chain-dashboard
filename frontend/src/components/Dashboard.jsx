@@ -299,7 +299,7 @@ export default function Dashboard() {
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(3,1fr)",
-          gridTemplateRows: "repeat(2,0.9fr)",
+          gridTemplateRows: "repeat(2,1fr)",
           gap: 12,
           flexGrow: 1,
         }}
